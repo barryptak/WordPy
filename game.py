@@ -1,14 +1,16 @@
-import colorama
-import json
-import letterutils
+""" Core game class for WordPy. """
+
 import os
 import random
 import string
-
-from colorama import Fore, Back, Style
 from datetime import date
 from enum import Enum
-from letterutils import LetterState
+
+import colorama
+from colorama import Fore, Back, Style
+
+import letter_utils
+from letter_utils import LetterState
 
 class GameState(Enum):
     ''' Valid game states '''
@@ -23,25 +25,23 @@ class Game:
     '''
     Our main game class. Contains a state machine for managing the game state and progression.
     Usage:
-        from gamedata import GameData
+        from game_config import GameConfig
         from game import Game
 
-        config = GameData() # There are optional parameters available here
+        config = GameConfig() # There are optional parameters available here
         game = Game(config)
         game.run()
     '''
 
-    def __init__(self, config):
-        if config == None:
+    def __init__(self, config, data):
+        if config is None:
             raise ValueError("Config missing")
+        if data is None:
+            raise ValueError("Data missing")
 
         self._state = GameState.INTRO
         self._config = config
-        self._words = None
-        self._answers = None
-
-        if not self._load_word_lists():
-            raise ValueError("Error loading word lists")
+        self._data = data
 
         self._start()
 
@@ -49,71 +49,31 @@ class Game:
         colorama.init(autoreset=True)
 
 
-    @property
-    def valid_words(self):
-        ''' List of valid words '''
-        return self._words["words"]
-
-
-    @property
-    def possible_answers(self):
-        ''' List of all possible answers '''
-        return self._answers["words"]
-
-
-    def _load_word_lists(self):
-        '''
-        Loads the json files containing the valid words and valid answers
-        Returns: True for success, False for failure
-        '''
-
-        try:
-            with open("./data/answers.json") as answers_file:
-                self._answers = json.load(answers_file)
-            with open("./data/valid_words.json") as words_file:
-                self._words = json.load(words_file)
-        except Exception as ex:
-            return False
-
-        return True
-
-
-    def is_valid_word(self, word):
-        '''
-        Is the specified word a valid dictionary word?
-        Arguments:
-            word: The word to validate
-        Returns: True if the word is valid, False if it is not
-        '''
-
-        if letterutils.is_word_naively_valid(word) == False:
-            return False
-
-        return word.lower() in self.valid_words
-
-
     def _pick_answer(self):
         '''
         Picks a new answer for the game.
-        If the user forced a word via the command-line then that word will be used.
-        Otherwise we use today's date (or the command-line forced date) to pick a random answer from the answers list.
+        If the user forced a word via the command-line then that word will be
+        used. Otherwise we use today's date (or the command-line forced date) to
+        pick a random answer from the answers list.
         Returns: the answer for this run of the game
         '''
-        if self._config.word != None:
+        if self._config.word is not None:
             return self._config.word.lower()
         else:
             # If random is True then use the default seed of the current system time.
             # If it's False then let's seed using a date
-            if self._config.random == False:
+            if not self._config.random:
                 # Pick a random answer based on today's (or the forced) date
-                # This isn't what Wordle does ~(it just iterates through an unordered list), and we can end up with
+                # This isn't what Wordle does ~(it just iterates through an
+                # unordered list), and we can end up with
                 # the same answer on multiple days, but it's fine for now.
-                # It also prevents someone trivially looking up the next word in the data file and cheating that way.
+                # It also prevents someone trivially looking up the next word in
+                # the data file and cheating that way.
                 days_since_epoch = self._config.date - date(1970, 1, 1)
-                days_since_epoch.days
                 random.seed(days_since_epoch.days)
 
-            return self.possible_answers[random.randrange(0, len(self.possible_answers))]
+            num_answers = len(self._data.possible_answers)
+            return self._data.possible_answers[random.randrange(0, num_answers)]
 
 
     def _start(self):
@@ -123,14 +83,8 @@ class Game:
         self._answer = self._pick_answer()
         self._guess_number = 1
         self._won = False
-        self._guesses = [
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]),
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]),
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]),
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]),
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]),
-            ("     ", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE])]
-
+        empty_guess = ("     ", [LetterState.NONE] * 5)
+        self._guesses = [empty_guess] * 6
 
     def run(self):
         '''
@@ -214,7 +168,7 @@ class Game:
             os.system("clear")
             self._print_logo()
 
-            if self._prompt_for_input() == True:
+            if self._prompt_for_input():
                 break
 
     def _show_help(self):
@@ -228,20 +182,31 @@ class Game:
             print("------------------------------")
             print("Guess the WORDPy in 6 tries")
             print("Each guess must be a valid 5-letter word. Hit the enter button to submit.")
-            print("After each guess, the color of the tiles will change to show how close your guess was to the word.")
+            print("After each guess, the color of the tiles will change to show" +
+                  "how close your guess was to the word.")
             print("------------------------------")
             print("\nExamples")
-            print("\n" + letterutils.format_word("WEARY", [LetterState.CORRECT, LetterState.NONE,LetterState.NONE,LetterState.NONE,LetterState.NONE]))
+            print("\n" + letter_utils.format_word("WEARY",
+                                                 [LetterState.CORRECT,
+                                                  LetterState.NONE,
+                                                  LetterState.NONE,
+                                                  LetterState.NONE,
+                                                  LetterState.NONE]))
             print("The letter W is in the word and in the correct spot.")
-            print("\n" + letterutils.format_word("PILLS", [LetterState.NONE, LetterState.WRONG_PLACE,LetterState.NONE,LetterState.NONE,LetterState.NONE]))
+            print("\n" + letter_utils.format_word("PILLS",
+                                                 [LetterState.NONE,
+                                                  LetterState.WRONG_PLACE,
+                                                  LetterState.NONE,
+                                                  LetterState.NONE,
+                                                  LetterState.NONE]))
             print("The letter I is in the word but in the wrong spot.")
-            print("\n" + letterutils.format_word("VAGUE", [LetterState.NONE, LetterState.NONE,LetterState.NONE,LetterState.WRONG,LetterState.NONE]))
+            print("\n" + letter_utils.format_word("VAGUE", [LetterState.NONE] * 5))
             print("The letter U is not in the word in any spot.")
             print("\n------------------------------")
             print("A new WORDPy will be available each day")
             print("------------------------------")
 
-            if self._prompt_for_input() == True:
+            if self._prompt_for_input():
                 break
 
 
@@ -249,7 +214,7 @@ class Game:
         ''' Draws the current game grid to the console '''
 
         for guess in self._guesses:
-            print(letterutils.format_word(guess[0], guess[1]))
+            print(letter_utils.format_word(guess[0], guess[1]))
 
     def _draw_used_letters(self):
         '''
@@ -271,7 +236,8 @@ class Game:
         for guess in self._guesses:
             guess_word = guess[0].upper()
             guess_state = guess[1]
-            for i in range(len(guess_word)):
+            for i, letter in enumerate(guess_word):
+            #for i in range(len(guess_word)):
                 letter = guess_word[i]
 
                 if letter not in string.ascii_uppercase:
@@ -284,7 +250,7 @@ class Game:
                 if used_letters[letter] == LetterState.NONE or state == LetterState.CORRECT:
                     used_letters[letter] = state
 
-        print(letterutils.format_word(string.ascii_uppercase, list(used_letters.values())))
+        print(letter_utils.format_word(string.ascii_uppercase, list(used_letters.values())))
 
 
     def _show_game(self):
@@ -307,9 +273,9 @@ class Game:
                 break
 
             # Validate word
-            if self.is_valid_word(word):
+            if self._data.is_valid_word(word):
 
-                guess = letterutils.score_word(word, self._answer)
+                guess = letter_utils.score_word(word, self._answer)
                 self._guesses[self._guess_number - 1] = guess
                 self._guess_number += 1
 
@@ -321,8 +287,8 @@ class Game:
                     # We've lost!!!
                     self._change_state(GameState.LOST)
                 break
-            else:
-                print("Invalid word. Try again...")
+
+            print("Invalid word. Try again...")
 
 
     def _show_end(self, won):
@@ -339,14 +305,12 @@ class Game:
                 print("\nWell done!")
             else:
                 print("\nSorry, you lost...")
-                print(f"The correct answer was " + letterutils.format_word(self._answer, [LetterState.CORRECT, LetterState.CORRECT, LetterState.CORRECT, LetterState.CORRECT, LetterState.CORRECT]))
+                print("The correct answer was " +
+                      letter_utils.format_word(self._answer, [LetterState.CORRECT] * 5))
 
-            if self._config.infinite == True:
-                if self._prompt_for_input() == True:
+            if self._config.infinite:
+                if self._prompt_for_input():
                     break
             else:
                 self._change_state(GameState.QUIT)
                 break
-
-
-

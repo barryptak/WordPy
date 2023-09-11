@@ -1,36 +1,43 @@
-import letterutils
-import sys
+""" Root wordpy app entry point. """
 
-from gameconfig import GameConfig
-from game import Game
+import sys
 from datetime import date
 
+import letter_utils
+from game_config import GameConfig
+from game_data import GameData
+from game import Game
+
 def main():
+    """ Main entry point. """
+
     # Read in the command line options and create the matching game data
     try:
-        game_data = create_game_data_from_args(sys.argv)
+        game_config = create_game_config_from_args(sys.argv)
+        game_data = GameData()
     except ValueError as e:
         print_usage(e)
         sys.exit()
 
     # Now create our Game object and run it
-    game = Game(game_data)
+    game = Game(game_config, game_data)
     try:
         game.run()
     # Capture Ctrl + C and quit gracefully
     except KeyboardInterrupt:
         sys.exit()
 
-def create_game_data_from_args(argv):
+
+def create_game_config_from_args(argv):
     """
-    Parses the set of command line arguments and creates the appropriate GameData object for it.
+    Parses the set of command line arguments and creates the appropriate GameConfig object for it.
     Arguments:
         argv: the sys.argv parameters that this program was launched with
     Raises:
         ValueError: on invalid input
     """
 
-    if argv == None:
+    if argv is None:
         raise ValueError("No arguments passed in")
 
     num_args = len(argv)
@@ -40,13 +47,15 @@ def create_game_data_from_args(argv):
     infinite = False
     random = False
 
-    # Iterate through the provided arguments determining their meaning and performing any further validation
+    # Iterate through the provided arguments determining their meaning and
+    # performing any further validation
     while current_arg < num_args:
         match argv[current_arg]:
 
             case "-?" | "-help":
-                # Ok, it's a bit weird raising an error for this, but we don't want to run normally and
-                # throwing here will result in the usage being printed out as desired.
+                # Ok, it's a bit weird raising an error for this, but we don't
+                # want to run normally and throwing here will result in the
+                # usage being printed out as desired.
                 raise ValueError()
 
             # The -date argument must be followed by a date in ISO format (YYYY-MM-DD)
@@ -69,12 +78,12 @@ def create_game_data_from_args(argv):
 
             # Unexpected arguments mean that we should reject everything
             case _:
-                 raise ValueError(f"Unexpected argument found: {argv[current_arg]}")
+                raise ValueError(f"Unexpected argument found: {argv[current_arg]}")
 
         # Move on to the next argument
         current_arg += 1
 
-    return GameConfig(forceddate=game_date, word=word, infinite=infinite, random=random)
+    return GameConfig(forced_date=game_date, word=word, infinite=infinite, random=random)
 
 
 def parse_date(argv, index):
@@ -87,21 +96,22 @@ def parse_date(argv, index):
     Returns: the created date object
     Raises:
         IndexError: when negative index is supplied
-        ValueError: when date argument is missing, or when arguement is not in the expected ISO format
+        ValueError: when date argument is missing, or when argument is not in
+            the expected ISO format
     """
     if index < 0:
         raise IndexError(index)
 
     # If there's no argument after this one then the date is missing and these arguments are bad
     if index >= len(argv):
-        raise ValueError(f"Missing date argument")
+        raise ValueError("Missing date argument")
 
     # Try to read the next argument as an ISO format date
     try:
         dateArg = argv[index]
         return date.fromisoformat(dateArg)
-    except ValueError:
-        raise ValueError(f"Invalid date argument: {dateArg}")
+    except ValueError as ex:
+        raise ValueError(f"Invalid date argument: {dateArg}") from ex
 
 
 def parse_word(argv, index):
@@ -114,18 +124,19 @@ def parse_word(argv, index):
     Returns: the created date object
     Raises:
         IndexError: when negative index is supplied
-        ValueError: when word argument is missing, or when arguement is invalid (wrong length or characters)
+        ValueError: when word argument is missing, or when argument is invalid
+            (wrong length or characters)
     """
     if index < 0:
         raise IndexError(index)
 
     # If there's no argument after this one then the word is missing and these arguments are bad
     if index >= len(argv):
-        raise ValueError(f"Missing word argument")
+        raise ValueError("Missing word argument")
 
     # Next check that the word is the correct length and character set
     wordArg = argv[index]
-    if letterutils.is_word_naively_valid(wordArg) == False:
+    if not letter_utils.is_word_naively_valid(wordArg):
         raise ValueError(f"Invalid word argument: {wordArg}")
     return wordArg
 
@@ -136,7 +147,9 @@ def print_usage(errorStr = None):
     Arguments:
         [optional] errorStr: An error string to print out before the normal usage instructions
     """
-    if str and len(str(errorStr)) > 0: print(errorStr)
+    if str and len(str(errorStr)) > 0:
+        print(errorStr)
+
     print(  "usage project.py [option]\n" +
             "  options:\n" +
             "   -date <date>      : forces the game to use the word from the specified date\n" +

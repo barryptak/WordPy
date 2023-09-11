@@ -1,7 +1,8 @@
+""" Utilities for handling letters in wordpy. """
 import re
 
-from colorama import Fore, Back
 from enum import Enum
+from colorama import Fore, Back
 
 class LetterState(Enum):
     ''' The state of each letter in a user's guess '''
@@ -19,10 +20,10 @@ def is_word_naively_valid(word):
         word: The word to check
     Returns: True for a valid word, False for an invalid one
     """
-    if word == None:
+    if word is None:
         return False
 
-    return re.fullmatch(r"[a-zA-Z]{5}", word) != None
+    return re.fullmatch(r"[a-zA-Z]{5}", word) is not None
 
 
 def blank_character(word, index):
@@ -33,43 +34,57 @@ def blank_character(word, index):
         word: the word to blank a character from
         index: the index of the character to blank
     '''
-    if index < 0 or index > len(word) - 1: return word
+    if index < 0 or index > len(word) - 1:
+        return word
+
     return word[:index] + '_' + word[index+1:]
 
 
 def score_word(word, answer):
     '''
-    Determines the score/letter state for the supplied word and returns a tuple containing the word and the score/state for each letter
-        e.g. ("ERASE", [LetterState.CORRECT, LetterState.WRONG_PLACE, LetterState.WRONG_PLACE, LetterState.WRONG, LetterState.WRONG_PLACE])
+    Determines the score/letter state for the supplied word and returns a tuple
+    containing the word and the score/state for each letter
+        e.g. ("ERASE", [LetterState.CORRECT,
+                        LetterState.WRONG_PLACE,
+                        LetterState.WRONG_PLACE,
+                        LetterState.WRONG,
+                        LetterState.WRONG_PLACE])
     Arguments:
         word: the word to score
         answer: the correct answer to score against
-    Returns: Tuple containing the original word and an array with the score/state for each letter
+    Returns: Tuple containing the original word and an array with the
+        score/state for each letter
     '''
     if not is_word_naively_valid(word):
         raise ValueError()
 
-    score = [LetterState.WRONG, LetterState.WRONG, LetterState.WRONG, LetterState.WRONG, LetterState.WRONG]
+    score = [LetterState.WRONG] * 5
 
     # Check for fully correct letters first
-    # We do correct letters in the wrong place in the second pass so that they don't match against already fully correct letters
+    # We do correct letters in the wrong place in the second pass so that they
+    # don't match against already fully correct letters
     for i in range(5):
         letter = word[i]
         if letter == answer[i]:
             score[i] = LetterState.CORRECT
-            answer = blank_character(answer, i) # We blank out any correctly guessed letters so that other guesses of the same letter don't pick them up
+            # We blank out any correctly guessed letters so that other guesses
+            # of the same letter don't pick them up
+            answer = blank_character(answer, i)
 
-    # Do our second pass looking for letters in the wrong place now that we've marked off the fully correct letters
+    # Do our second pass looking for letters in the wrong place now that we've
+    # marked off the fully correct letters
     for i in range(5):
         # Skip already correct letters
-        if (score[i] == LetterState.CORRECT):
+        if score[i] == LetterState.CORRECT:
             continue
 
         letter = word[i]
         for j in range(5):
             if j != i and letter == answer[j]:
                 score[i] = LetterState.WRONG_PLACE
-                answer = blank_character(answer, j) # We blank out any correctly guessed letters so that other guesses of the same letter don't pick them up
+                # We blank out any correctly guessed letters so that other
+                # guesses of the same letter don't pick them up
+                answer = blank_character(answer, j)
                 break
 
     return (word, score)
@@ -86,7 +101,7 @@ def format_word(word, word_state):
         word_state: the scores/state for each letter (a list of LetterState enum values)
     Returns: the marked up string ready for printing to the console
     '''
-    if word == None or word_state == None or len(word) != len(word_state):
+    if word is None or word_state is None or len(word) != len(word_state):
         raise ValueError(f"{word}, ({len(word)}) {word_state}, {len(word_state)}")
 
     letter_backgrounds = {
@@ -100,7 +115,7 @@ def format_word(word, word_state):
     word = word.upper()
 
     text = ""
-    for i in range(len(word)):
-        text += Fore.WHITE + letter_backgrounds[word_state[i]] + "[" + word[i] + "]"
+    for i, letter in enumerate(word):
+        text += Fore.WHITE + letter_backgrounds[word_state[i]] + "[" + letter + "]"
 
     return text
